@@ -134,46 +134,58 @@ class CLSNet(nn.Module):
         
         _, c, h_head, w_head = feats.size()
 
+        if self.training:
 
-        # lables : [b,1, H, W ]
-        label = gt.unsqueeze(1).float()
-        label = F.interpolate(label, size=(h_head, w_head), mode='nearest')
-        label = label.squeeze(1)# [b, H, W]
-        not_ignore_spatial_mask = label.to(torch.int32) != self.num_classes  # [b, H, W]
-        one_hot_label = F.one_hot((label * not_ignore_spatial_mask).to(torch.long), self.num_classes) # [b, H, W,k]
-        one_hot_label = one_hot_label.view(batch_size,-1,h_head,w_head)
-        one_hot_label = one_hot_label.float()
+            # lables : [b,1, H, W ]
+            label = gt.unsqueeze(1).float()
+            label = F.interpolate(label, size=(h_head, w_head), mode='nearest')
+            label = label.squeeze(1)# [b, H, W]
+            not_ignore_spatial_mask = label.to(torch.int32) != self.num_classes  # [b, H, W]
+            one_hot_label = F.one_hot((label * not_ignore_spatial_mask).to(torch.long), self.num_classes) # [b, H, W,k]
+            one_hot_label = one_hot_label.view(batch_size,-1,h_head,w_head)
+            one_hot_label = one_hot_label.float()
 
-        # b,k,h',w'
-        pred = one_hot_label
-        
-        # b*num_h*num_w,c,h,w
-        patch_feats = self.patch_split(feats, self.patch_size)
-        # b*num_h*num_w,k,h,w
-        pacth_pred = self.patch_split(pred, self.patch_size)
-        # b*num_h*num_w,c,k
-        class_local_center = self.get_local_center(patch_feats, pacth_pred)
+            one_hot_label_flat = one_hot_label.view(batch_size,self.num_classes,-1)
+            non_zero_map = torch.count_nonzero(one_hot_label_flat, dim=-1)#[b,k]
+            #替换其中的0值为1，防止除以0
+            non_zero_map = torch.where(non_zero_map == 0, 
+                                    torch.tensor([1], device=non_zero_map.device, dtype=torch.long),
+                                    non_zero_map)
+            non_zero_map = non_zero_map.unsqueeze(-1) # [b,k,1]
+            non_zero_map = non_zero_map.unsqueeze(1) # [b,1,k,1]
 
-        # b,num_h*num_w*k,c
-        class_local_center = class_local_center.permute(0,2,1).contiguous().view(batch_size,-1,c)
-        # b,num_h*num_w,k,c
-        class_local_center = class_local_center.view(batch_size, -1, self.num_classes, c)
-        # b,num_h*num_w,k,c
-        normalize_class_local_center = self.local_center_norm(class_local_center)
-        # b*num_h*num_w,k,c
-        normalize_class_local_center = normalize_class_local_center.view(-1, self.num_classes, c)
-        # b,num_h*num_w*k,c
-        normalize_class_local_center_copy = normalize_class_local_center.view(batch_size, -1, c)
-        # b,k*num_proto,c
-        prototype_expand = self.prototype.unsqueeze(0).expand(batch_size,self.num_classes*self.num_prototype_per_class,c)
-        # b,num_h*num_w*k,k*num_proto
-        proto_dist = torch.cdist(normalize_class_local_center_copy,prototype_expand)
-        # b,num_h*num_w*k
-        # 找到每个样本中距离最近的原型索引
-        nearest_indices = torch.argmin(proto_dist, dim=-1)
+            # b,k,h',w'
+            pred = one_hot_label
+            
+            # b*num_h*num_w,c,h,w
+            patch_feats = self.patch_split(feats, self.patch_size)
+            # b*num_h*num_w,k,h,w
+            pacth_pred = self.patch_split(pred, self.patch_size)
+            # b*num_h*num_w,c,k
+            class_local_center = self.get_local_center(patch_feats, pacth_pred)
+
+            # b,num_h*num_w*k,c
+            class_local_center = class_local_center.permute(0,2,1).contiguous().view(batch_size,-1,c)
+            # b,num_h*num_w,k,c
+            class_local_center = class_local_center.view(batch_size, -1, self.num_classes, c)
+
+            class_local_center = class_local_center / non_zero_map
+            # b,num_h*num_w,k,c
+            normalize_class_local_center = self.local_center_norm(class_local_center)
+            # b*num_h*num_w,k,c
+            normalize_class_local_center = normalize_class_local_center.view(-1, self.num_classes, c)
+            # b,num_h*num_w*k,c
+            normalize_class_local_center_copy = normalize_class_local_center.view(batch_size, -1, c)
+            # b,k*num_proto,c
+            prototype_expand = self.prototype.unsqueeze(0).expand(batch_size,self.num_classes*self.num_prototype_per_class,c)
+            # b,num_h*num_w*k,k*num_proto
+            proto_dist = torch.cdist(normalize_class_local_center_copy,prototype_expand)
+            # b,num_h*num_w*k
+            # 找到每个样本中距离最近的原型索引
+            nearest_indices = torch.argmin(proto_dist, dim=-1)
 
 
-        num_total_patch = self.num_patch*self.num_classes
+            num_total_patch = self.num_patch*self.num_classes
 
         if(self.training):
             #print("there")
