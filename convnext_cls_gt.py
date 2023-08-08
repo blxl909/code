@@ -35,7 +35,7 @@ class SpatialGatherModule(nn.Module):
     def forward(self, features, probs):
         batch_size, num_classes, h, w = probs.size()
         probs = probs.view(batch_size, num_classes, -1) # batch * k * hw
-        probs = F.softmax(self.scale * probs, dim=2)
+        #probs = F.softmax(self.scale * probs, dim=2)
 
         features = features.view(batch_size, features.size(1), -1)
         features = features.permute(0, 2, 1) # batch * hw * c
