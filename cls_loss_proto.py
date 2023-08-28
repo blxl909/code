@@ -190,13 +190,15 @@ def compute_distance_p2c_loss(gt_mask, distance_l2, ignored_index = 6, num_class
 
 
 
+
+
 class local_center_loss(nn.Module):
     def __init__(self,
                  alpha = 0.5,
                  beta = 1.0,
                  ignore_index = 6,
                  num_classes = 6,
-                 patch_size = (4,4),
+                 patch_size = (2,2),
                  num_prototype_per_class = 8):
         super().__init__()
         self.alpha = alpha
@@ -212,9 +214,9 @@ class local_center_loss(nn.Module):
 
     def forward(self,predition, gt_mask):
         if self.training:
-              pred,coarse_pred,adaptive_class_center,self.aux, p2c_sim_map,distance_l2,prototypes = predition
+              pred,coarse_pred,self.aux, p2c_sim_map,distance_l2,prototypes = predition
         else:
-              pred,coarse_pred,adaptive_class_center, p2c_sim_map ,distance_l2,prototypes = predition
+              pred,coarse_pred, p2c_sim_map ,distance_l2,prototypes = predition
         batch_size, h, w = gt_mask.size()
 
         coarse_pred = F.interpolate(coarse_pred,size=(h, w), mode="bilinear", align_corners=False)
@@ -257,19 +259,9 @@ class local_center_loss(nn.Module):
 
         subspace_sep = subspace_sep / (c * self.num_classes)
 
-
-
-
-
 #==============================================
 
 
-
-
-
-
-
-        
         dice_loss = self.dice(coarse_pred, gt_mask)
         #c2c_loss = compute_c2c_loss(adaptive_class_center)
         p2c_loss = compute_p2c_loss(gt_mask, p2c_sim_map,self.ignore_index,self.num_classes,self.num_prototype_per_class)
@@ -280,7 +272,7 @@ class local_center_loss(nn.Module):
               #return p2c_loss + self.beta * dice_loss + ce_loss + 0.4 * aux_loss
               #return self.alpha * c2c_loss + self.beta * dice_loss + ce_loss + 0.4 * aux_loss  no_p2c_loss
               
-              #return p2c_loss + self.alpha * c2c_loss + self.beta * dice_loss + ce_loss + 0.4 * aux_loss   
+              #return p2c_loss + self.alpha * c2c_loss + self.beta * dice_loss + ce_loss + 0.4 * aux_loss    
               return  p2c_loss + ce_loss  + self.beta * dice_loss+ 0.4 * aux_loss - 0.08 * subspace_sep + orth_cost + 0.5*distance_p2c_loss
         else:
               #return p2c_loss + self.beta * dice_loss + ce_loss
