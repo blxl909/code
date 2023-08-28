@@ -5,66 +5,6 @@ import math
 from geoseg.losses.dice import *
 
 
-def square_mean_loss(loss, inverse_order=True):
-    if inverse_order:
-        return torch.square(torch.mean(loss))
-    else:
-        return torch.mean(torch.square(loss))
-
-def get_class_diag(num_class, dtype = torch.float32):
-    ones = torch.ones(num_class, dtype=torch.long)
-    diag = torch.diag(ones)
-    diag = diag.type(dtype)
-
-    return diag
-
-def get_inter_class_relations(query, key = None, apply_scale = True):
-
-    if key is None:
-        key = torch.clone(query)
-    
-    key = key.permute(0,2,1) # [N, C, class]
-    key = key.detach()
-
-    attention = torch.matmul(query, key) # [N, class, class]
-
-    num_class = key.shape[-1]
-    diag = get_class_diag(num_class, query.dtype)
-
-    if apply_scale:
-        attention_scale = torch.sqrt(torch.tensor(query.shape[-1], dtype=query.dtype))
-        attention /= (attention_scale + 1e-4)
-
-    attention = F.softmax(attention, dim=-1)
-
-    return attention, diag
-
-def compute_c2c_loss(class_features_query, class_features_key = None, inter_c2c_loss_threshold = 0.5):
-    # class_features [N, class, C]
-
-    class_relation, diag = get_inter_class_relations(
-        class_features_query,class_features_key
-    )  # [N, class, class]
-    
-    class_relation = class_relation.to("cuda")
-    diag = diag.to("cuda")
-
-    num_class = class_relation.shape[-1]
-
-    other_relation = class_relation * (1 - diag)  # [N, class, class]
-
-    threshold = inter_c2c_loss_threshold / (num_class - 1 )
-
-    other_relation = torch.where(other_relation > threshold, other_relation - threshold, torch.zeros_like(other_relation))
-
-    loss = other_relation.sum(dim=-1)  # [N, class]
-
-    loss = torch.clamp(loss, min=torch.finfo(loss.dtype).eps, max=1 - torch.finfo(loss.dtype).eps)
-
-    loss = square_mean_loss(loss)
-
-    return loss
-
 
 
 
