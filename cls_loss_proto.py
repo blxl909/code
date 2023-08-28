@@ -213,11 +213,11 @@ class local_center_loss(nn.Module):
               #return self.alpha * c2c_loss + self.beta * dice_loss + ce_loss + 0.4 * aux_loss  no_p2c_loss
               
               #return p2c_loss + self.alpha * c2c_loss + self.beta * dice_loss + ce_loss + 0.4 * aux_loss    
-              return  p2c_loss + ce_loss  + self.beta * dice_loss+ 0.4 * aux_loss - 0.08 * subspace_sep + orth_cost + 0.5*distance_p2c_loss
+              return  p2c_loss + ce_loss  + self.beta * dice_loss+ 0.4 * aux_loss - 0.08 * subspace_sep + orth_cost - 0.5*distance_p2c_loss
         else:
               #return p2c_loss + self.beta * dice_loss + ce_loss
               #return self.alpha * c2c_loss + self.beta * dice_loss + ce_loss
               #return p2c_loss + self.alpha * c2c_loss + self.beta * dice_loss + ce_loss
-              return  p2c_loss + ce_loss+self.beta * dice_loss  - 0.08 * subspace_sep + orth_cost +0.5* distance_p2c_loss
+              return  p2c_loss + ce_loss+self.beta * dice_loss  - 0.08 * subspace_sep + orth_cost -0.5* distance_p2c_loss
 
 
